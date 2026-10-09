@@ -1,4 +1,4 @@
-export const statuses = ['Saved','Preparing','Applied','Interview','Offer','Rejected','Withdrawn'];
+export const statuses = ['Saved','Preparing','Applied','Follow-up','Interview','Offer','Rejected','Withdrawn'];
 export const criteria = ['Experience & seniority','Duties & responsibilities','Tools & functions','Qualifications & requirements','Original CV presentation'];
 export const weights = [25,25,20,20,10];
 export function fit(scores) {
@@ -9,7 +9,7 @@ export function safeUrl(value) {
  if (!value) return '';
  const u = new URL(value); if (!['http:','https:'].includes(u.protocol) || u.username || u.password) throw new Error('Use a public HTTP or HTTPS source URL.'); return u.href;
 }
-const limits = {role:200,company:200,location:200,url:2000,jd:30000,notes:15000,recruiter:3000,appliedDate:10,followupDate:10,deadline:10,gaps:8000,realism:8000};
+const limits = {role:200,company:200,location:200,url:2000,jd:30000,requirements:6000,extractionMethod:200,notes:15000,recruiter:3000,appliedDate:10,followupDate:10,deadline:10,gaps:8000,realism:8000};
 export function validateJob(input) {
  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Invalid application.');
  const result = {};
@@ -21,6 +21,8 @@ export function validateJob(input) {
  result.scores = Array.from({length:5},(_,i)=>input.scores?.[i] ?? null);
  if(result.scores.some(v=>v !== null && (typeof v!=='number'||!Number.isFinite(v)||v<0||v>100))) throw new Error('Scores must be between 0 and 100.');
  result.evidence = Array.from({length:5},(_,i)=>input.evidence?.[i] ?? '');
+ result.assessmentMode=input.assessmentMode==='manual'?'manual':'automatic';
+ if(input.assessment!==undefined&&input.assessment!==null){if(typeof input.assessment!=='object'||typeof input.assessment.cacheId!=='string'||! /^[a-f0-9]{64}$/.test(input.assessment.cacheId))throw new Error('Invalid assessment reference.');result.assessment={cacheId:input.assessment.cacheId};}
  if(result.evidence.some(v=>typeof v !== 'string'||v.length>5000)) throw new Error('Evidence must be text of at most 5000 characters.');
  if(input.emailEvents !== undefined) {
   if(!Array.isArray(input.emailEvents)||input.emailEvents.length>100) throw new Error('Invalid email evidence history.');
@@ -38,6 +40,7 @@ export function validateEmailEvent(event) {
  return result;
 }
 export function validateProfile(p) {
- const result = {}; for(const [k,n] of Object.entries({name:200,email:200,phone:100,summary:10000,master:60000,roles:2000,city:200,preferences:3000})) { if(typeof p[k] !== 'string'||p[k].length>n) throw new Error(`Invalid profile field: ${k}.`);result[k]=p[k]; } return result;
+ p={...p,masterEnglish:p.masterEnglish??''};
+ const result = {}; for(const [k,n] of Object.entries({name:200,email:200,phone:100,summary:10000,master:60000,masterEnglish:60000,roles:2000,city:200,preferences:3000})) { if(typeof p[k] !== 'string'||p[k].length>n) throw new Error(`Invalid profile field: ${k}.`);result[k]=p[k]; } return result;
 }
 export function safeFilename(name) { return name.replace(/[^a-zA-Z0-9._ -]/g,'_').slice(0,180) || 'document'; }
