@@ -1,6 +1,10 @@
+import {refreshFamilyLeads} from '../family-leads-server';
+import {readDailyLeads} from '../leads.mjs';
 import { context, failure, json } from '../api/shared';
 import { validateEmailEvent } from '../model.mjs';
 const tools=[
+ {name:'refresh_daily_leads',description:'Refresh the signed-in user’s daily Germany job shortlist against their own saved CV. Idempotent per Germany calendar day; no access to another account’s profile or leads. No applications or CV rewrites.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true}},
+ {name:'list_daily_leads',description:'Read only the signed-in user’s dated private daily job leads.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true}},
  {name:'list_applications',description:'List applications in the signed-in private Career Desk workspace. Read only.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true}},
  {name:'record_email_outcome',description:'Record an explicit rejection, interview invitation or offer for one confirmed matching application. Caller must verify the company and role match and supply email evidence. Ambiguous outcomes require human review; do not call this tool for them.',inputSchema:{type:'object',properties:{jobId:{type:'string'},company:{type:'string'},role:{type:'string'},outcome:{type:'string',enum:['rejected','interview','offer']},messageId:{type:'string'},subject:{type:'string'},sender:{type:'string'},receivedAt:{type:'string'},evidence:{type:'string'}},required:['jobId','company','role','outcome','messageId','subject','sender','receivedAt','evidence'],additionalProperties:false},annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true}}
 ];
@@ -14,10 +18,12 @@ export async function POST(request:Request) {
   if(message.method==='tools/list')return reply({tools});
   if(message.method!=='tools/call')return json({jsonrpc:'2.0',id,error:{code:-32601,message:'Method not found'}});
   const {user,db}=await context(request);
+  if(message.params?.name==='refresh_daily_leads')return reply({content:[{type:'text',text:JSON.stringify(await refreshFamilyLeads(db,user))}]});
+  if(message.params?.name==='list_daily_leads')return reply({content:[{type:'text',text:JSON.stringify({days:await readDailyLeads(db,user.userId)})}]});
   if(message.params?.name==='list_applications') {
    const rows=await db.prepare('SELECT id,payload,updated_at FROM jobs WHERE user_id=? ORDER BY updated_at DESC').bind(user.userId).all();
    const jobs=rows.results.map((r:any)=>({id:r.id,...JSON.parse(r.payload),updatedAt:r.updated_at}));
-   return reply({content:[{type:'text',text:JSON.stringify({applications:jobs})}]});
+   return reply({content:[{type:'text',text:JSON.stringify({applications:jobs,dailyLeads:await readDailyLeads(db,user.userId)})}]});
   }
   if(message.params?.name==='record_email_outcome') {
    const a=message.params.arguments;
